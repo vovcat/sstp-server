@@ -140,8 +140,8 @@ def main():
         logging.info('Running without SSL.')
     else:
         ssl_ctx = _load_cert(args.pem_cert, args.pem_key)
-        if args.ciphers:
-            ssl_ctx.set_ciphers(args.ciphers)
+        if args.ciphers: ssl_ctx.set_ciphers(args.ciphers)
+
     if args.pem_cert:
         cert_hash = certtool.get_fingerprint(args.pem_cert)
         logging.info('Cert SHA-1: %s', hexlify(cert_hash.sha1).decode())
@@ -149,26 +149,24 @@ def main():
     else:
         cert_hash = None
         logging.warning('--pem_cert not given, hash checking disabled')
-    on_unix_socket = args.listen.startswith('/')
 
     if uvloop is None:
         logging.info('Running without uvloop')
     else:
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         logging.info('Using uvloop')
+
     loop = asyncio.get_event_loop()
-    factory = SSTPProtocolFactory(args,
-                                  remote_pool=ippool,
-                                  cert_hash=cert_hash)
+    factory = SSTPProtocolFactory(args, remote_pool=ippool, cert_hash=cert_hash, ssl_ctx=ssl_ctx)
+
+    on_unix_socket = args.listen.startswith('/')
+
     if on_unix_socket:
-        coro = loop.create_unix_server(factory,
-                                       args.listen,
-                                       ssl=ssl_ctx)
+        coro = loop.create_unix_server(factory, args.listen, ssl=ssl_ctx)
     else:
-        coro = loop.create_server(factory,
-                                  args.listen.split(','),
-                                  args.listen_port,
-                                  ssl=ssl_ctx)
+        #logging.debug(f'''loop.create_server(factory, {args.listen.split(',')}, {args.listen_port}, ssl={ssl_ctx})''')
+        coro = loop.create_server(factory, args.listen.split(','), args.listen_port)#, ssl=ssl_ctx)
+
     server = loop.run_until_complete(coro)
 
     if not on_unix_socket:
@@ -177,11 +175,13 @@ def main():
 
     if args.proxy_protocol:
         logging.info('PROXY PROTOCOL is activated.')
+
     if on_unix_socket:
         logging.info('Listening on %s...', args.listen)
     else:
         for addr in args.listen.split(','):
             logging.info('Listening on %s:%s...', addr, args.listen_port)
+
     try:
         loop.run_forever()
     except KeyboardInterrupt:
@@ -191,4 +191,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
