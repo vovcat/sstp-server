@@ -153,57 +153,88 @@ class SSTPProtocol(Protocol):
             if self.receive_buf:
                 self.data_received(b'')
 
-
     def http_data_received(self, data):
-        def close(*args):
-            logging.warning(*args)
+        def http_close(err, *args):
+            logging.warning(err, *args)
+            self.transport.write(b'HTTP/1.1 400 Bad Request\r\n'
+                b'Server: SSTP-Server/%s\r\n\r\n%s\r\n' % (
+                str(__version__).encode(), (err % args).encode()))
             self.transport.close()
 
         self.receive_buf.extend(data)
-        if b"\r\n\r\n" not in self.receive_buf:
+        if b'\r\n\r\n' not in self.receive_buf:
             if len(self.receive_buf) > HTTP_REQUEST_BUFFER_SIZE:
-                close('Request too large, may not a valid HTTP request.')
+                http_close('Request is too large, may not be a valid HTTP request.')
             return
+
         headers = self.receive_buf.split(b'\r\n')
-        request_line = headers[0]
         self.receive_buf.clear()
+
         try:
+            request_line = headers[0].decode(errors='replace')
+            self.logging.debug('%s', request_line)
             method, uri, version = request_line.split()
         except ValueError:
-            return close('Not a valid HTTP request.')
-        if method != b"SSTP_DUPLEX_POST" or version != b"HTTP/1.1":
-            return close('Unexpected HTTP method (%s) and/or version (%s).',
-                         method.decode(errors='replace'),
-                         version.decode(errors='replace'))
-        for header in filter(lambda x: b'sstpcorrelationid:' in x.lower(), headers):
-            try:
-                guid = header.decode('ascii').split(':')[1]
-                self.correlation_id = guid.strip().strip("{}")
-            except:
-                pass
-        host, port = None, None
-        for header in filter(lambda x: b'x-forwarded-for' in x.lower(), headers):
-            try:
-                hosts = header.decode('ascii').split(':')[1]
-                host = hosts.split(',')[0].strip()
-            except:
-                pass
-        for header in filter(lambda x: b'x-forwarded-sourceport' in x.lower(), headers):
-            try:
-                ports = header.decode('ascii').split(':')[1]
-                port = int(ports.split(',')[0].strip())
-            except:
-                pass
-        if self.factory.use_http_proxy and host is not None:
-            self.remote_host = host
-            # port can be None if not forwarded
-            self.remote_port = port
-        self.init_logging()
-        self.transport.write(b'HTTP/1.1 200 OK\r\n'
-                b'Content-Length: 18446744073709551615\r\n'
-                b'Server: SSTP-Server/%s\r\n\r\n' % str(__version__).encode())
-        self.state = State.SERVER_CONNECT_REQUEST_PENDING
+            return http_close('Not a valid HTTP request: %r', request_line)
 
+        hdict = {}
+        for h in headers[1:]:
+            if not h: break
+            line = h.decode(errors='replace')
+            try: k, v = line.split(':', 1)
+            except ValueError: continue
+            hdict[k.lower()] = v.strip()
+            self.logging.debug('%s', line)
+
+        '''
+        CGET -X SSTP_DUPLEX_POST -H SSTPCORRELATIONID:test http://sstp.frik.su/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/ -d test
+
+        SSTP_DUPLEX_POST /sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/ HTTP/1.1
+        SSTPCORRELATIONID: {C129D75C-4301-000E-DB3E-2AC10143DB01}
+        Content-Length: 18446744073709551615
+        Host: sstp.host.name
+
+        SSTP_DUPLEX_POST /sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/ HTTP/1.1
+        Content-Length: 18446744073709551615
+        Host: sstp.host.name
+        SSTPCORRELATIONID: {4d56031f-c06f-4665-8615-fa080c6a35ba}
+
+        #print(f'=== {self.loop._selector._fd_to_key.keys()} {[k for k in self.loop._transports.keys()]}')
+        #print(f'=== {[h._callback for h in self.loop._ready]}')
+        '''
+
+        if method != 'SSTP_DUPLEX_POST' or version != 'HTTP/1.1':
+            return http_close('Unexpected HTTP method (%s) and/or version (%s).', method, version)
+
+        try: return http_close('Invalid Content-Type: %s', hdict['content-type'])
+        except: pass
+
+        try: self.correlation_id = hdict['sstpcorrelationid'].strip('{}')
+        except: return http_close('Invalid correlation id')
+
+        try: self.content_length = int(hdict['content-length'])
+        except: return http_close('Invalid Content-Length')
+
+        if self.content_length < 18446744073709551615:
+            return http_close('Invalid Content-Length')
+
+        # Use X-Forwarded-For and X-Forwarded-SourcePort headers over plain HTTP
+        if not self.factory.proxy_protocol and (self.factory.no_ssl or not self.ssl):
+            try: host = hdict['x-forwarded-for'].split(',')[0].strip()
+            except: host = None
+            try: port = int(hdict['x-forwarded-sourceport'].split(',')[0].strip())
+            except: port = None
+            if host: self.remote_host = host
+            if host and port: self.remote_port = port # port can be None if not forwarded
+
+        self.init_logging()
+        self.logging.info(f'New client connection')
+
+        self.transport.write(
+            b'HTTP/1.1 200 OK\r\n'
+            b'Content-Length: 18446744073709551615\r\n'
+            b'Server: SSTP-Server/%s\r\n\r\n' % str(__version__).encode())
+        self.state = State.SERVER_CONNECT_REQUEST_PENDING
 
     def sstp_data_received(self, data):
         self.reset_hello_timer()
