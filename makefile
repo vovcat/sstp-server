@@ -18,5 +18,5 @@ makefile.vars: $(filter-out makefile.vars,$(MAKEFILE_LIST))
 	python3 -c 'import sysconfig; [ print(f"""{k}={str(v).replace("$$","$$$$")}\n""") for k, v in sysconfig.get_config_vars().items() ]' >$@
 
 sstpd/codec$(EXT_SUFFIX): sstpd/codecmodule.c
-	$(CC) $(PY_CFLAGS) -fPIC -I$(INCLUDEPY) -c $^ -o $(<:.c=.o)
+	$(CC) -Wall -Wextra $(PY_CFLAGS) -fPIC -I$(INCLUDEPY) -c $^ -o $(<:.c=.o)
 	$(LDSHARED) $(<:.c=.o) -L$(LIBDIR) -o $@

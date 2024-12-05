@@ -72,7 +72,7 @@ escape_to(unsigned char byte, unsigned char* out, Py_ssize_t* pos)
 }
 
 static PyObject *
-codec_escape(PyObject *self, PyObject *args)
+codec_escape(PyObject */*self*/, PyObject *args)
 {
     const unsigned char* data;
     Py_buffer buf_in;
@@ -174,7 +174,7 @@ PppDecoder_dealloc(PppDecoder* self) {
 }
 
 static PyObject *
-PppDecoder_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+PppDecoder_new(PyTypeObject *type, PyObject */*args*/, PyObject */*kwds*/)
 {
     PppDecoder *self;
     self = (PppDecoder *)type->tp_alloc(type, 0);
@@ -237,6 +237,17 @@ static PyTypeObject codec_PppDecoderType = {
     0,                                /* tp_init */
     0,                                /* tp_alloc */
     PppDecoder_new,                   /* tp_new */
+    0,                                /* tp_free */
+    0,                                /* tp_is_gc */
+    0,                                /* tp_bases */
+    0,                                /* tp_mro */
+    0,                                /* tp_cache */
+    0,                                /* tp_subclasses */
+    0,                                /* tp_weaklist */
+    0,                                /* tp_del */
+    0,                                /* tp_version_tag */
+    0,                                /* tp_finalize */
+    0,                                /* tp_vectorcall */
 };
 
 
@@ -249,10 +260,14 @@ static PyMethodDef CodecMethods[] = {
 
 static struct PyModuleDef codecmodule = {
     PyModuleDef_HEAD_INIT,
-    "codec", /* name of module */
-    NULL,    /* module documentation */
-    -1,      /* keep state in global variables */
-    CodecMethods
+    "codec",                    /* name of module */
+    NULL,                       /* module documentation */
+    -1,                         /* keep state in global variables */
+    CodecMethods,
+    NULL,                       /* m_slots */
+    NULL,                       /* m_traverse */
+    NULL,                       /* m_clear */
+    NULL,                       /* m_free */
 };
 
 PyMODINIT_FUNC
@@ -270,4 +285,3 @@ PyInit_codec(void)
      PyModule_AddObject(m, "PppDecoder", (PyObject *) &codec_PppDecoderType);
      return m;
 }
-
