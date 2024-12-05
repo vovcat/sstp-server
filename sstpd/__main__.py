@@ -5,7 +5,7 @@ import asyncio
 import logging
 import argparse
 from socket import IPPROTO_TCP, TCP_NODELAY
-from configparser import SafeConfigParser, NoSectionError
+from configparser import ConfigParser, NoSectionError
 from binascii import hexlify
 try:
     import uvloop
@@ -37,7 +37,7 @@ def _get_args():
             'log_level': logging.INFO
     }
     if args.conf_file:
-        config = SafeConfigParser()
+        config = ConfigParser()
         config.read(args.conf_file)
         try:
             defaults.update(dict(config.items(args.conf_section)))
