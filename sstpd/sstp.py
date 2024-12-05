@@ -289,7 +289,6 @@ class SSTPProtocol(Protocol):
             self.logging.warn('Unknown type of SSTP control packet.')
             self.abort(ATTRIB_STATUS_INVALID_FRAME_RECEIVED)
 
-
     def sstp_call_connect_request_received(self, protocolId):
         if self.state in (State.CALL_ABORT_TIMEOUT_PENDING,
                 State.CALL_ABORT_PENDING,
@@ -320,25 +319,29 @@ class SSTPProtocol(Protocol):
                 b'\x00\x00\x00' + bytes([hpb]) + self.nonce)]
         ack.write_to(self.transport.write)
 
+        args = ['115200', 'notty', 'file', self.factory.pppd_config_file]
+
         remote = ''
         if self.factory.remote_pool:
             remote = self.factory.remote_pool.apply()
             if remote is None:
-                self.logging.warn('IP address pool is full. '
-                             'Cannot accept new connection.')
+                self.logging.warn('IP address pool is full. Cannot accept new connection.')
                 self.abort()
                 return
-            self.logging.info('Registered address %s', remote);
 
-        address_argument = '%s:%s' % (self.factory.local, remote)
-        args = ['notty', 'file', self.factory.pppd_config_file,
-                '115200', address_argument]
+            if self.factory.ifname_prefix:
+                ifname = self.factory.ifname_prefix + \
+                    str(self.factory.remote_pool.addr_num(remote))
+                args += ['ifname', ifname]
+
+            self.logging.info('Registered address %s ifname %r', remote, ifname);
+
+        args += ['%s:%s' % (self.factory.local, remote)]
+
         if self.factory.pppd_sstp_api_plugin is not None:
             # create a unique socket filename
-            ppp_sock = tempfile.NamedTemporaryFile(
-                    prefix='ppp-sstp-api-', suffix='.sock')
-            args += ['plugin', self.factory.pppd_sstp_api_plugin,
-                    'sstp-sock', ppp_sock.name]
+            ppp_sock = tempfile.NamedTemporaryFile(prefix='ppp-sstp-api-', suffix='.sock')
+            args += ['plugin', self.factory.pppd_sstp_api_plugin, 'sstp-sock', ppp_sock.name]
             ppp_event = self.loop.create_unix_server(
                     PPPDSSTPPluginFactory(callback=self),
                     path=ppp_sock.name)
@@ -346,24 +349,30 @@ class SSTPProtocol(Protocol):
             task = asyncio.create_task(ppp_event)
             task.add_done_callback(self.ppp_sstp_api)
 
+        sstp_env = {}
         if self.remote_host is not None:
             args += ['remotenumber', self.remote_host]
+            args += ['set', 'REMOTE_HOST=' + self.remote_host]
+            sstp_env['SSTP_REMOTE_HOST'] = self.remote_host
+        if self.remote_port is not None:
+            args += ['set', 'REMOTE_PORT=' + str(self.remote_port)]
+            sstp_env['SSTP_REMOTE_PORT'] = str(self.remote_port)
+        if self.correlation_id is not None:
+            args += ['set', 'REMOTE_ID=' + self.correlation_id]
+            sstp_env['SSTP_REMOTE_ID'] = self.correlation_id
 
         ppp_env = os.environ.copy()
-        if self.correlation_id is not None:
-            ppp_env['SSTP_REMOTE_ID'] = self.correlation_id
-        if self.remote_host is not None:
-            ppp_env['SSTP_REMOTE_HOST'] = self.remote_host
-        if self.remote_port is not None:
-            ppp_env['SSTP_REMOTE_PORT'] = str(self.remote_port)
+        ppp_env.update(sstp_env)
 
         factory = PPPDProtocolFactory(callback=self, remote=remote)
+        self.logging.info(f'subprocess_exec(factory, pppd={self.factory.pppd}, args={args}, env={sstp_env})')
         coro = self.loop.subprocess_exec(factory, self.factory.pppd, *args, env=ppp_env)
         task = asyncio.ensure_future(coro)
         task.add_done_callback(self.pppd_started)
         self.state = State.SERVER_CALL_CONNECTED_PENDING
 
     def pppd_started(self, task):
+        self.logging.info('pppd started')
         err = task.exception()
         if err is not None:
             self.logging.warning("Fail to start pppd: %s", err)
@@ -654,13 +663,13 @@ class SSTPProtocolFactory:
     def __init__(self, config, remote_pool, cert_hash=None):
         self.pppd = config.pppd
         self.pppd_config_file = config.pppd_config
+        self.ifname_prefix = config.ifname_prefix
         # detect ppp_sstp_api_plugin
         ppp_sstp_api_plugin = 'sstp-pppd-plugin.so'
         has_plugin = subprocess.run(
                 [self.pppd, 'plugin', ppp_sstp_api_plugin, 'notty', 'dryrun'],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.pppd_sstp_api_plugin = (None, ppp_sstp_api_plugin)\
-                [has_plugin.returncode == 0]
+        self.pppd_sstp_api_plugin = (None, ppp_sstp_api_plugin)[has_plugin.returncode == 0]
         self.local = config.local
         self.proxy_protocol = config.proxy_protocol
         self.use_http_proxy = (config.no_ssl and not config.proxy_protocol)

@@ -1,5 +1,7 @@
 import ipaddress
 
+class RegisteredException(Exception):
+    pass
 
 class IPPool:
 
@@ -7,8 +9,8 @@ class IPPool:
         self._pool = []
         self._capacity = None
         self._network = ipaddress.ip_network(network)
-        self._first = self._network.network_address+1
-        self._last = self._network.broadcast_address-1
+        self._first = self._network.network_address + 1
+        self._last = self._network.broadcast_address - 1
         if range:
             r_err = ValueError("Range "+range+" not in network "+network)
             first, last = range.split("-")
@@ -27,13 +29,11 @@ class IPPool:
                         self._last = self._network.network_address+int(last)
         self.reset()
 
-
     def _next_host(self):
         for host in self._hosts:
             if host in self._pool:
                 continue
             return host
-
 
     def register(self, address):
         addr = ipaddress.ip_address(address)
@@ -41,9 +41,9 @@ class IPPool:
             raise RegisteredException()
         self._pool.append(addr)
 
-
     def apply(self):
-        """Return a available IP address and register it.
+        """
+        Return a available IP address and register it.
         Return None if the pool is full.
         """
         if self._capacity is not None and len(self._pool) == self._capacity:
@@ -57,8 +57,11 @@ class IPPool:
                 self._capacity = len(self._pool)
         else:
             self._pool.append(addr)
+
         return addr
 
+    def addr_num(self, addr):
+        return int.from_bytes(addr.packed) - int.from_bytes(self._first.packed)
 
     def unregister(self, address):
         addr = ipaddress.ip_address(address)
@@ -67,7 +70,6 @@ class IPPool:
         except ValueError:
             pass
 
-
     def reset(self):
         self._hosts = filter(
             lambda host:
@@ -75,9 +77,3 @@ class IPPool:
                 host <= self._last,
             self._network.hosts()
         )
-
-
-class RegisteredException(Exception):
-    pass
-
-

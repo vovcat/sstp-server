@@ -88,6 +88,10 @@ def _get_args():
             metavar='RANGE',
             help="Limit remote NETWORK to given RANGE (e.g. 192.168.20.10-20 "
             "or 192.168.20.10-192.168.20.20)")
+    parser.add_argument('--ifname-prefix',
+            type=str, metavar='IFNAME-PREFIX',
+            help="Enable passing ifname option to pppd containing this value "
+            "concatenated with allocated IP address serial number")
     parser.add_argument('--ciphers',
             metavar="CIPHER-LIST",
             help='Custom OpenSSL cipher suite. See ciphers(1).')
