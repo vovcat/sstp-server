@@ -1,3 +1,4 @@
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <stdbool.h>
 
@@ -101,7 +102,7 @@ codec_escape(PyObject *self, PyObject *args)
 
     buffer[pos++] = FLAG_SEQUENCE;
 
-    PyObject* result = Py_BuildValue("y#", buffer, pos);
+    PyObject* result = Py_BuildValue("y#", buffer, (Py_ssize_t) pos);
     free(buffer);
     return result;
 }
@@ -145,7 +146,7 @@ PppDecoder_unescape(PppDecoder *self, PyObject *args)
             if (self->frame_buf_pos > 4) {
                 /* Ignore 2-bytes FCS field */
                 PyObject* frame = Py_BuildValue("y#",
-                        self->frame_buf, self->frame_buf_pos - 2);
+                        self->frame_buf, (Py_ssize_t) self->frame_buf_pos - 2);
                 if (PyList_Append(frames, frame) == -1) {
                     Py_DECREF(frame);
                     self->frame_buf_pos = 0;
