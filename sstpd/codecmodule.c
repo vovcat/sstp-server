@@ -60,7 +60,7 @@ static u16 fcstab[256] = {
 #define MAX_FRAME_SIZE   2048
 
 static inline void
-escape_to(unsigned char byte, unsigned char* out, int* pos)
+escape_to(unsigned char byte, unsigned char* out, Py_ssize_t* pos)
 {
     if (byte < 0x20 || byte == FLAG_SEQUENCE || byte == CONTROL_ESCAPE) {
         out[(*pos)++] = CONTROL_ESCAPE;
@@ -77,7 +77,7 @@ codec_escape(PyObject *self, PyObject *args)
     const unsigned char* data;
     Py_buffer buf_in;
     unsigned char* buffer;
-    int pos = 0;
+    Py_ssize_t pos = 0;
     u16 fcs = PPPINITFCS16;
     int i;
 
@@ -102,7 +102,7 @@ codec_escape(PyObject *self, PyObject *args)
 
     buffer[pos++] = FLAG_SEQUENCE;
 
-    PyObject* result = Py_BuildValue("y#", buffer, (Py_ssize_t) pos);
+    PyObject* result = Py_BuildValue("y#", buffer, pos);
     free(buffer);
     return result;
 }
@@ -111,7 +111,7 @@ codec_escape(PyObject *self, PyObject *args)
 typedef struct {
     PyObject_HEAD
     char* frame_buf;
-    int frame_buf_pos;
+    Py_ssize_t frame_buf_pos;
     bool escaped;
 } PppDecoder;
 
@@ -146,7 +146,7 @@ PppDecoder_unescape(PppDecoder *self, PyObject *args)
             if (self->frame_buf_pos > 4) {
                 /* Ignore 2-bytes FCS field */
                 PyObject* frame = Py_BuildValue("y#",
-                        self->frame_buf, (Py_ssize_t) self->frame_buf_pos - 2);
+                        self->frame_buf, self->frame_buf_pos - 2);
                 if (PyList_Append(frames, frame) == -1) {
                     if (frame) Py_DECREF(frame);
                     self->frame_buf_pos = 0;
