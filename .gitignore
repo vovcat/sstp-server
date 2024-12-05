@@ -8,6 +8,7 @@ __pycache__/
 *.py[cod]
 
 # C extensions
+makefile.vars
 *.so
 
 # Distribution / packaging
