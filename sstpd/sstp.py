@@ -108,11 +108,14 @@ class SSTPProtocol(Protocol):
         except (ConnectionResetError, ssl.SSLError) as e:
             # ssl.SSLError: [SSL: VERSION_TOO_LOW]
             # ssl.SSLError: [SSL: NO_SUITABLE_SIGNATURE_ALGORITHM]
+            # ssl.SSLError: [SSL: NO_SHARED_CIPHER] no shared cipher
+            # ssl.SSLError: [SSL: BAD_KEY_SHARE] bad key share
             self.logging.info('Connection error %s', e)
 
     def data_received(self, data):
-        self.logging.debug(f'data_received {data[:12]!r}')
         if self.state == State.SERVER_CALL_DISCONNECTED:
+            self.logging.debug(f'data_received {data[:12]!r}')
+
             if self.proxy_protocol_passed:
                 self.http_data_received(data)
             else:
@@ -172,7 +175,7 @@ class SSTPProtocol(Protocol):
 
         try:
             request_line = headers[0].decode(errors='replace')
-            self.logging.debug('%s', request_line)
+            self.logging.debug('%r', request_line)
             method, uri, version = request_line.split()
         except ValueError:
             return http_close('Not a valid HTTP request: %r', request_line)
@@ -184,7 +187,7 @@ class SSTPProtocol(Protocol):
             try: k, v = line.split(':', 1)
             except ValueError: continue
             hdict[k.lower()] = v.strip()
-            self.logging.debug('%s', line)
+            self.logging.debug('%r', line)
 
         '''
         CGET -X SSTP_DUPLEX_POST -H SSTPCORRELATIONID:test http://sstp.frik.su/sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/ -d test
