@@ -13,7 +13,7 @@ from .proxy_protocol import parse_pp_header, PPException, PPNoEnoughData
 
 
 HTTP_REQUEST_BUFFER_SIZE = 10 * 1024
-HELLO_TIMEOUT = 60
+HELLO_TIMEOUT = 10
 
 
 class State(Enum):
