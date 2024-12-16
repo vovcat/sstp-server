@@ -72,7 +72,7 @@ escape_to(unsigned char byte, unsigned char* out, Py_ssize_t* pos)
 }
 
 static PyObject *
-codec_escape(PyObject */*self*/, PyObject *args)
+codec_escape(PyObject *self, PyObject *args)
 {
     const unsigned char* data;
     Py_buffer buf_in;
@@ -80,6 +80,8 @@ codec_escape(PyObject */*self*/, PyObject *args)
     Py_ssize_t pos = 0;
     u16 fcs = PPPINITFCS16;
     int i;
+
+    (void)self;
 
     if (!PyArg_ParseTuple(args, "y*", &buf_in))
         return NULL;
@@ -174,9 +176,11 @@ PppDecoder_dealloc(PppDecoder* self) {
 }
 
 static PyObject *
-PppDecoder_new(PyTypeObject *type, PyObject */*args*/, PyObject */*kwds*/)
+PppDecoder_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     PppDecoder *self;
+    (void)args;
+    (void)kwds;
     self = (PppDecoder *)type->tp_alloc(type, 0);
     if (self != NULL) {
         self->frame_buf = malloc(sizeof(char[MAX_FRAME_SIZE]));
