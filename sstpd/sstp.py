@@ -382,6 +382,7 @@ class SSTPProtocol(Protocol):
                 self.abort()
                 return
 
+            ifname = 'auto'
             if self.factory.ifname_prefix:
                 ifname = self.factory.ifname_prefix + \
                     str(self.factory.remote_pool.addr_num(remote))
