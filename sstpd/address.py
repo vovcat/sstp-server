@@ -61,7 +61,8 @@ class IPPool:
         return addr
 
     def addr_num(self, addr):
-        return int.from_bytes(addr.packed) - int.from_bytes(self._first.packed)
+        return int.from_bytes(addr.packed, byteorder='big') - \
+               int.from_bytes(self._first.packed, byteorder='big')
 
     def unregister(self, address):
         addr = ipaddress.ip_address(address)
